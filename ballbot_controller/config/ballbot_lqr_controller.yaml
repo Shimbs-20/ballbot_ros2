@@ -1,0 +1,23 @@
+controller_manager:
+  ros__parameters:
+    update_rate: 100
+    use_sim_time: true
+ 
+    joint_state_broadcaster:
+      type: joint_state_broadcaster/JointStateBroadcaster
+ 
+    ballbot_velocity_controller:
+      type: velocity_controllers/JointGroupVelocityController
+ 
+ballbot_velocity_controller:
+  ros__parameters:
+    joints:
+      - wheel1_joint
+      - wheel2_joint
+      - wheel3_joint
+    command_interfaces:
+      - velocity
+    state_interfaces:
+      - position
+      - velocity
+ 

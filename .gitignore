@@ -1,0 +1,18 @@
+# Ignore Python bytecode cache
+**/__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# Ignore build artifacts (just in case)
+build/
+install/
+log/
+
+# Ignore local IDE configurations
+.vscode/
+.DS_Store
+
+# Ignore temporary backup files
+*.swp
+*~

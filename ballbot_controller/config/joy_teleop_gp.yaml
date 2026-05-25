@@ -1,0 +1,26 @@
+joy_teleop:
+  ros__parameters:
+    move:
+      type: topic
+      interface_type: geometry_msgs/msg/Twist
+      topic_name: /cmd_vel_joy
+
+      # L1 (button 4) is the deadman switch (must be held to move)
+      # This is standard for safety even in "faked" physics
+      deadman_buttons: [4]
+
+      axis_mappings:
+        linear-x:
+          axis: 1       # Left stick Vertical (Forward/Backward)
+          scale: 1.2    # Increased to 1.2 m/s for snappier response
+          offset: 0.0
+
+        linear-y:
+          axis: 0       # Left stick Horizontal (Strafe Left/Right)
+          scale: 1.2    # Matched with X for consistent omnidirectional feel
+          offset: 0.0
+
+        angular-z:
+          axis: 3       # Right stick Horizontal (Rotation)
+          scale: 2.5    # Increased to 2.5 rad/s to make turns feel athletic
+          offset: 0.0

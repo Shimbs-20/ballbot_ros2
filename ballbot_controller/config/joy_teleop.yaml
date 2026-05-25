@@ -1,0 +1,20 @@
+joy_teleop_node:
+  ros__parameters:
+    move:
+      type: topic
+      interface_type: geometry_msgs/msg/Twist
+      topic_name: /cmd_vel_joy
+      # L1 (button 4) must be held to move — deadman switch
+      deadman_buttons: [4]   # L1 on DualShock4 – hold to move
+
+      axis_mappings:
+        linear-x:
+          axis: 2        # Left stick vertical
+          scale: -0.5
+          offset: 0.5
+
+      angular-z:
+          axis: 3        # Right stick horizontal #which axis is L2 on DualShock4? maybe 4? 
+          scale: 1.0
+          offset: 0.0
+

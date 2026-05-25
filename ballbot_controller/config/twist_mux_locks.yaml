@@ -1,0 +1,10 @@
+twist_mux:
+  ros__parameters:
+    locks:
+      # BUG FIX: "safety_sinset-block-start" was a malformed key name
+      # (looked like a YAML block-scalar artefact). Renamed to safety_stop.
+      safety_stop:
+        topic:    safety_stop
+        timeout:  0.0
+        priority: 255
+ 

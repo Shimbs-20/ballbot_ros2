@@ -1,0 +1,102 @@
+slam_toolbox:
+  ros__parameters:
+
+    # ── Solver ─────────────────────────────────────────────────────
+    # Ceres with SPARSE_NORMAL_CHOLESKY is the best option for
+    # graph-based SLAM. These are validated defaults — do not change.
+    solver_plugin: solver_plugins::CeresSolver
+    ceres_linear_solver: SPARSE_NORMAL_CHOLESKY
+    ceres_preconditioner: SCHUR_JACOBI
+    ceres_trust_strategy: LEVENBERG_MARQUARDT
+    ceres_dogleg_type: TRADITIONAL_DOGLEG
+    ceres_loss_function: None
+
+    # ── Frame IDs — must match your URDF and bridge exactly ────────
+    odom_frame: odom
+    map_frame: map
+    base_frame: base_footprint
+    scan_topic: /scan
+    use_map_saver: true
+    mode: mapping
+
+    # ── General ────────────────────────────────────────────────────
+    debug_logging: false
+    throttle_scans: 1             # process every scan (LD06 = 10Hz, manageable)
+    transform_publish_period: 0.02
+    map_update_interval: 5.0      # publish /map every 5s — saves Pi CPU
+    resolution: 0.08            # 5cm cells — correct for indoor Nav2
+    max_laser_range: 12.0         # matches LD06 hardware max exactly
+
+
+    minimum_time_interval: 0.0
+
+    # FIX: was 0.2s — too tight for Pi 5 under load.
+    # 0.5s gives the TF buffer time to fill before slam_toolbox queries it.
+    transform_timeout: 0.5
+
+    tf_buffer_duration: 30.0
+    stack_size_to_use: 40000000
+    enable_interactive_mode: true
+
+    # ── Scan matching ──────────────────────────────────────────────
+    use_scan_matching: true
+    use_scan_barycenter: true
+
+    # FIX: was 0.5m — too far apart for dense accurate maps.
+    # At 0.2m you get 5x more pose nodes = much better loop closure
+    # and tighter map accuracy in small indoor rooms.
+    minimum_travel_distance: 0.2
+
+    # FIX: was 0.5 rad (~28°) — too coarse for turning in tight spaces.
+    # 0.2 rad (~11°) adds a node after every gentle turn.
+    minimum_travel_heading: 0.2
+
+    scan_buffer_size: 10
+    scan_buffer_maximum_scan_distance: 10.0
+    link_match_minimum_response_fine: 0.1
+
+    # FIX: was 1.5m — too short. If your robot moves at 0.3m/s and
+    # scan matching takes 200ms, the robot travels 6cm between match
+    # attempts. 1.5m is far too short a search radius. 2.5m ensures
+    # consecutive nodes can always be linked even with latency.
+    link_scan_maximum_distance: 2.5
+
+    # ── Loop closure ───────────────────────────────────────────────
+    loop_search_maximum_distance: 3.0  # search 3m radius for revisited places
+    do_loop_closing: true
+
+    # FIX: was 10 — requires the robot to travel ~2m before any loop
+    # closure can trigger (10 nodes × 0.2m = 2m minimum). 5 nodes
+    # allows loop closure after just 1m of travel, which is important
+    # in small rooms.
+    loop_match_minimum_chain_size: 5
+
+    loop_match_maximum_variance_coarse: 3.0
+    loop_match_minimum_response_coarse: 0.35
+    loop_match_minimum_response_fine: 0.45
+
+    # ── Correlation scan matcher ───────────────────────────────────
+    # These are standard Karto defaults, validated for 360° lidars.
+    # Only tune if you see ghost walls or drift in the map.
+    correlation_search_space_dimension: 0.5
+    correlation_search_space_resolution: 0.01
+    correlation_search_space_smear_deviation: 0.1
+
+    # Loop closure correlation window — 8m is standard for indoor rooms
+    loop_search_space_dimension: 8.0
+    loop_search_space_resolution: 0.05
+    loop_search_space_smear_deviation: 0.03
+
+    # ── Scan matcher penalties ─────────────────────────────────────
+    # Penalises poses that require large corrections from the odometry.
+    # Higher = trusts odometry more, less aggressive correction.
+    # Your STM32 EKF odom is good, so these defaults are correct.
+    distance_variance_penalty: 0.5
+    angle_variance_penalty: 1.0
+
+    fine_search_angle_offset: 0.00349
+    coarse_search_angle_offset: 0.349
+    coarse_angle_resolution: 0.0349
+    minimum_angle_penalty: 0.9
+    minimum_distance_penalty: 0.5
+    use_response_expansion: true
