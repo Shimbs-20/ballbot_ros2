@@ -57,10 +57,9 @@
       </material>
     </visual>
     <collision>
-      <origin xyz="0 0 0" rpy="0 0 0" />
+      <origin xyz="0 0 0.35" rpy="0 0 0"/>
       <geometry>
-        <mesh
-          filename="package://gp_description/meshes/base_link.STL" />
+        <box size="0.40 0.40 0.70"/>
       </geometry>
     </collision>
   </link>
@@ -86,7 +85,7 @@
     <collision>
       <origin xyz="0 0 0" rpy="0 0 0" />
       <geometry>
-        <sphere radius="0.15" />
+        <sphere radius="0.125" />
       </geometry>
     </collision>
   </link>
@@ -107,24 +106,18 @@
     </inertial>
   </link>
 
-  <joint name="sphere_roll" type="continuous">
-    <parent link="base_link" />
-    <child link="dummy_rx" />
-    <axis xyz="1 0 0" />
+  <joint name="sphere_roll" type="fixed">
+    <parent link="base_link"/>
+    <child link="dummy_rx"/>
   </joint>
-
-  <joint name="sphere_pitch" type="continuous">
-    <parent link="dummy_rx" />
-    <child link="dummy_ry" />
-    <axis xyz="0 1 0" />
+  <joint name="sphere_pitch" type="fixed">
+    <parent link="dummy_rx"/>
+    <child link="dummy_ry"/>
   </joint>
-
-  <joint name="sphere_yaw" type="continuous">
-    <parent link="dummy_ry" />
-    <child link="Sphere" />
-    <axis xyz="0 0 1" />
+  <joint name="sphere_yaw" type="fixed">
+    <parent link="dummy_ry"/>
+    <child link="Sphere"/>
   </joint>
-
 
   <link name="wheel1">
     <inertial>
