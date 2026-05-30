@@ -91,7 +91,7 @@ planner_server:
 
     # ── SmacPlanner2D Global Planner ──
     GridBased:
-      plugin: "nav2_smac_planner/SmacPlanner2D"
+      plugin: "nav2_smac_planner::SmacPlanner2D"
       tolerance: 0.2
       allow_unknown: true
       max_iterations: 1000000
