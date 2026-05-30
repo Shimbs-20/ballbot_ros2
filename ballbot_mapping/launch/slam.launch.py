@@ -33,7 +33,6 @@ from launch.conditions import IfCondition, UnlessCondition
 from launch.substitutions import LaunchConfiguration
 from launch_ros.actions import Node
 from ament_index_python.packages import get_package_share_directory
-from launch.actions import TimerAction
 
 
 def generate_launch_description():
@@ -103,11 +102,21 @@ def generate_launch_description():
         ],
     )
 
-
+    # ══════════════════════════════════════════════════════════════
+    # AMCL LOCALIZATION MODE (use_slam:=false)
+    # map_server — serves the saved .pgm file as /map topic
+    # amcl — particle filter, reads amcl.yaml config
+    # lifecycle_manager — activates map_server → amcl in order
+    #
+    # In RViz on laptop after this starts:
+    #   1. Fixed Frame → map
+    #   2. Add → Map → /map → Durability: Transient Local
+    #   3. "2D Pose Estimate" → click where robot is on the map
+    #   4. Drive with keyboard → particles converge in a few seconds
+    # ══════════════════════════════════════════════════════════════
     localization = GroupAction(
         condition=UnlessCondition(use_slam),
         actions=[
-            # map_server starts immediately — serves the saved .pgm map
             Node(
                 package="nav2_map_server",
                 executable="map_server",
@@ -118,31 +127,26 @@ def generate_launch_description():
                     "yaml_filename": map_yaml,
                 }],
             ),
-            TimerAction(
-                period=2.0,
-                actions=[
-                    Node(
-                        package="nav2_amcl",
-                        executable="amcl",
-                        name="amcl",
-                        output="screen",
-                        parameters=[
-                            os.path.join(ctrl_pkg, "config", "amcl.yaml"),
-                            {"use_sim_time": False},
-                        ],
-                    ),
-                    Node(
-                        package="nav2_lifecycle_manager",
-                        executable="lifecycle_manager",
-                        name="lifecycle_manager_localization",
-                        output="screen",
-                        parameters=[{
-                            "use_sim_time": False,
-                            "autostart":    True,
-                            "node_names":   ["map_server", "amcl"],
-                        }],
-                    ),
+            Node(
+                package="nav2_amcl",
+                executable="amcl",
+                name="amcl",
+                output="screen",
+                parameters=[
+                    os.path.join(map_pkg, "config", "amcl.yaml"),
+                    {"use_sim_time": False},
                 ],
+            ),
+            Node(
+                package="nav2_lifecycle_manager",
+                executable="lifecycle_manager",
+                name="lifecycle_manager_localization",
+                output="screen",
+                parameters=[{
+                    "use_sim_time": False,
+                    "autostart":    True,
+                    "node_names":   ["map_server", "amcl"],
+                }],
             ),
         ],
     )

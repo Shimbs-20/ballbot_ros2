@@ -1,0 +1,158 @@
+amcl:
+  ros__parameters:
+    use_sim_time: false
+
+bt_navigator:
+  ros__parameters:
+    use_sim_time: false
+    global_frame: map
+    robot_base_frame: base_footprint
+    odom_topic: odom
+    bt_loop_duration: 10
+    default_server_timeout: 20
+    plugin_lib_names:
+      - nav2_compute_path_to_pose_action_bt_node
+      - nav2_follow_path_action_bt_node
+      - nav2_back_up_action_bt_node
+      - nav2_spin_action_bt_node
+      - nav2_wait_action_bt_node
+      - nav2_clear_costmap_service_bt_node
+      - nav2_is_stuck_condition_bt_node
+      - nav2_goal_reached_condition_bt_node
+
+controller_server:
+  ros__parameters:
+    use_sim_time: false
+    controller_frequency: 10.0
+    min_x_velocity_threshold: 0.001
+    min_y_velocity_threshold: 0.001
+    min_theta_velocity_threshold: 0.001
+    failure_tolerance: 0.3
+    progress_checker_plugin: "progress_checker"
+    goal_checker_plugins: ["general_goal_checker"]
+    controller_plugins: ["FollowPath"]
+
+    # ── Progress Checker ──
+    progress_checker:
+      plugin: "nav2_controller::SimpleProgressChecker"
+      required_movement_radius: 0.5
+      movement_time_allowance: 10.0
+
+    # ── Goal Checker ──
+    general_goal_checker:
+      stateful: true
+      plugin: "nav2_controller::SimpleGoalChecker"
+      xy_goal_tolerance: 0.15
+      yaw_goal_tolerance: 0.25
+
+    # ── MPPI Local Planner Configuration ──
+    FollowPath:
+      plugin: "nav2_mppi_controller::MPPIController"
+      time_steps: 30
+      model_dt: 0.05
+      batch_size: 500  # Tuned for Raspberry Pi CPU constraints
+      vx_max: 0.5
+      vx_min: -0.5
+      vy_max: 0.5      # UNLOCKS HOLONOMIC SIDEWAYS MOTION
+      vy_min: -0.5     # UNLOCKS HOLONOMIC SIDEWAYS MOTION
+      wz_max: 1.0
+      iteration_count: 1
+      prune_distance: 1.5
+      transform_tolerance: 0.1
+      motion_model: "Omni"  # Sets kinematics to holonomic/omni-directional
+      critics: ["ConstraintCritic", "ObstaclesCritic", "GoalCritic", "PathAlignCritic", "PathFollowCritic", "TwirlingCritic"]
+
+      # Critic weights
+      ConstraintCritic:
+        cost_power: 1
+        cost_weight: 4.0
+      ObstaclesCritic:
+        cost_power: 1
+        cost_weight: 35.0
+        consider_footprint: false
+      GoalCritic:
+        cost_power: 1
+        cost_weight: 12.0
+        threshold_to_consider: 1.4
+      PathAlignCritic:
+        cost_power: 1
+        cost_weight: 14.0
+        trajectory_point_step: 3
+      PathFollowCritic:
+        cost_power: 1
+        cost_weight: 10.0
+        offset_from_furtherpoint: 1
+        trajectory_point_step: 3
+      TwirlingCritic:
+        cost_power: 1
+        cost_weight: 10.0 # Stops the ballbot from spinning like a top while driving
+
+planner_server:
+  ros__parameters:
+    use_sim_time: false
+    planner_plugins: ["GridBased"]
+    expected_planner_frequency: 1.0
+
+    # ── SmacPlanner2D Global Planner ──
+    GridBased:
+      plugin: "nav2_smac_planner/SmacPlanner2D"
+      tolerance: 0.2
+      allow_unknown: true
+      max_iterations: 1000000
+      max_on_approach_iterations: 1000
+      cost_travel_multiplier: 2.0
+
+local_costmap:
+  local_costmap:
+    ros__parameters:
+      update_frequency: 5.0
+      publish_frequency: 2.0
+      global_frame: odom
+      robot_base_frame: base_footprint
+      use_sim_time: false
+      rolling_window: true
+      width: 3
+      height: 3
+      resolution: 0.05
+      robot_radius: 0.22  # Adjusted safety margin
+      plugins: ["static_layer", "obstacle_layer", "inflation_layer"]
+      
+      inflation_layer:
+        plugin: "nav2_costmap_2d::InflationLayer"
+        cost_scaling_factor: 3.0
+        inflation_radius: 0.35  # Safe gradient buffer zone
+
+      obstacle_layer:
+        plugin: "nav2_costmap_2d::ObstacleLayer"
+        enabled: true
+        observation_sources: scan
+        scan:
+          topic: /scan
+          max_obstacle_height: 2.0
+          clearing: true
+          marking: true
+          data_type: "LaserScan"
+
+      static_layer:
+        plugin: "nav2_costmap_2d::StaticLayer"
+        map_subscribe_transient_local: true
+
+global_costmap:
+  global_costmap:
+    ros__parameters:
+      update_frequency: 1.0
+      publish_frequency: 1.0
+      global_frame: map
+      robot_base_frame: base_footprint
+      use_sim_time: false
+      robot_radius: 0.22
+      plugins: ["static_layer", "inflation_layer"]
+
+      inflation_layer:
+        plugin: "nav2_costmap_2d::InflationLayer"
+        cost_scaling_factor: 3.0
+        inflation_radius: 0.35
+
+      static_layer:
+        plugin: "nav2_costmap_2d::StaticLayer"
+        map_subscribe_transient_local: true
