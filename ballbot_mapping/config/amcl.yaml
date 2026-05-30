@@ -50,14 +50,6 @@ amcl:
     # In map frame: [0 - (-12.5), 0 - (-12.5)] = [12.5, 12.5]
     # Use RViz "2D Pose Estimate" or set_initial_pose.sh to correct
     # if robot is not actually at this location.
-    set_initial_pose: false
-    initial_pose:
-      x:   -7.0
-      y:   -10.50
-      z:   0.0
-      yaw: 0.0
-      #origin: [-7.000, -10.500000, 0.000000]
-
 
     resample_interval: 1
     save_pose_rate:    0.5

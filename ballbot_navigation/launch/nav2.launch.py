@@ -20,7 +20,6 @@ def generate_launch_description():
         description="true = SLAM mapping  |  false = AMCL localization"
     )
 
-    # ── NEW: Simple map selector argument ──
     map_name_arg = DeclareLaunchArgument(
         "map_name",
         default_value="small_house",
@@ -30,7 +29,6 @@ def generate_launch_description():
     use_slam = LaunchConfiguration("use_slam")
     map_name = LaunchConfiguration("map_name")
 
-    # Dynamic path construction using PathJoinSubstitution
     map_yaml_path = PathJoinSubstitution([
         map_pkg, "maps", map_name, "map.yaml"
     ])
@@ -52,7 +50,16 @@ def generate_launch_description():
                 executable="amcl",
                 name="amcl",
                 output="screen",
-                parameters=[os.path.join(map_pkg, "config", "amcl.yaml"), {"use_sim_time": False}],
+                parameters=[
+                    os.path.join(map_pkg, "config", "amcl.yaml"),
+                    {
+                        "use_sim_time": False,
+                        "set_initial_pose": True,
+                        "initial_pose.x": -2.0,
+                        "initial_pose.y": -2.0,  
+                        "initial_pose.yaw": 0.0,
+                    }
+                ],
             ),
             # Controller Server (MPPI)
             Node(
@@ -68,6 +75,13 @@ def generate_launch_description():
                 package="nav2_planner",
                 executable="planner_server",
                 name="planner_server",
+                output="screen",
+                parameters=[os.path.join(nav_pkg, "config", "nav2_param.yaml")],
+            ),
+            Node(
+                package="nav2_behaviors",
+                executable="behavior_server",
+                name="behavior_server",
                 output="screen",
                 parameters=[os.path.join(nav_pkg, "config", "nav2_param.yaml")],
             ),
@@ -88,7 +102,7 @@ def generate_launch_description():
                 parameters=[{
                     "use_sim_time": False,
                     "autostart":    True,
-                    "node_names":   ["map_server", "amcl", "planner_server", "controller_server", "bt_navigator"],
+                    "node_names":   ["map_server", "amcl", "planner_server", "controller_server", "behavior_server","bt_navigator"],
                 }],
             ),
         ],
