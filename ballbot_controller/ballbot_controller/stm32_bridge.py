@@ -16,11 +16,11 @@ import math
 
 TX_SYNC1    = 0xAA
 TX_SYNC2    = 0x55
-TX_SIZE     = 15       # 2 sync + 12 payload (3 floats) + 1 checksum
+TX_SIZE     = 15
 
 RX_SYNC1    = 0xBB
 RX_SYNC2    = 0x66
-RX_SIZE     = 27       # 2 sync + 24 payload (6 floats) + 1 checksum
+RX_SIZE     = 27
 
 
 def xor_checksum(data: bytes) -> int:
@@ -32,13 +32,6 @@ def xor_checksum(data: bytes) -> int:
 
 
 class BallbotSTM32Bridge(LifecycleNode):
-    """
-    Lifecycle node — startup order enforced by nav2_lifecycle_manager:
-      UNCONFIGURED ──on_configure──► INACTIVE   (open serial)
-      INACTIVE     ──on_activate──►  ACTIVE     (start TX timer + RX thread)
-      ACTIVE       ──on_deactivate►  INACTIVE   (zero vel + stop timer/thread)
-      INACTIVE     ──on_cleanup──►   UNCONFIGURED (close serial)
-    """
 
     def __init__(self):
         super().__init__('ballbot_stm32_bridge')
@@ -101,13 +94,11 @@ class BallbotSTM32Bridge(LifecycleNode):
         return TransitionCallbackReturn.SUCCESS
 
     def on_activate(self, state: State) -> TransitionCallbackReturn:
-        # Start RX thread — reads incoming odom packets from STM32
         self._rx_running = True
         self._rx_thread  = threading.Thread(
             target=self._rx_loop, daemon=True)
         self._rx_thread.start()
 
-        # Start TX timer — sends velocity commands to STM32
         rate = self.get_parameter('tx_rate_hz').value
         self._tx_timer = self.create_timer(1.0 / rate, self._tx_tick)
 
@@ -115,17 +106,14 @@ class BallbotSTM32Bridge(LifecycleNode):
         return TransitionCallbackReturn.SUCCESS
 
     def on_deactivate(self, state: State) -> TransitionCallbackReturn:
-        # ── SAFETY: zero velocity first ───────────────────────────
         with self._lock:
             self._cmd_vx = self._cmd_vy = self._cmd_yaw = 0.0
         self._send_cmd_packet(0.0, 0.0, 0.0)
 
-        # Stop TX timer
         if self._tx_timer:
             self._tx_timer.cancel()
             self._tx_timer = None
 
-        # Stop RX thread
         self._rx_running = False
         if self._rx_thread and self._rx_thread.is_alive():
             self._rx_thread.join(timeout=1.0)
@@ -144,7 +132,6 @@ class BallbotSTM32Bridge(LifecycleNode):
         return TransitionCallbackReturn.SUCCESS
 
     def on_shutdown(self, state: State) -> TransitionCallbackReturn:
-        # Best-effort zero velocity — called even from error states
         try:
             self._send_cmd_packet(0.0, 0.0, 0.0)
         except Exception:
@@ -160,9 +147,7 @@ class BallbotSTM32Bridge(LifecycleNode):
         self.get_logger().error('Error state — attempting safe shutdown')
         return self.on_shutdown(state)
 
-    # =========================================================================
-    # TX — send velocity commands to STM32
-    # =========================================================================
+
 
     def _cmd_vel_cb(self, msg: Twist):
         """Buffer incoming cmd_vel with velocity clamping."""
@@ -189,10 +174,6 @@ class BallbotSTM32Bridge(LifecycleNode):
         self._send_cmd_packet(vx, vy, yaw)
 
     def _send_cmd_packet(self, vx: float, vy: float, yaw: float):
-        """
-        Build and send 15-byte TX packet:
-          [0xAA][0x55][vx:f32LE][vy:f32LE][yaw:f32LE][xor:u8]
-        """
         if not self._serial or not self._serial.is_open:
             return
         try:
@@ -233,10 +214,8 @@ class BallbotSTM32Bridge(LifecycleNode):
                 # Wait until we have the full packet
                 if len(buf) < RX_SIZE:
                     continue
-
-                # ── Extract and validate ──────────────────────────
                 packet   = bytes(buf[:RX_SIZE])
-                payload  = packet[2:26]   # 24 bytes = 6 floats
+                payload  = packet[2:26]   
                 checksum = packet[26]
 
                 if xor_checksum(payload) != checksum:
@@ -246,10 +225,8 @@ class BallbotSTM32Bridge(LifecycleNode):
                     buf.pop(0)
                     continue
 
-                # ── Parse 6 floats ────────────────────────────────
                 x, y, theta, vx, vy, yaw_rate = struct.unpack('<6f', payload)
 
-                # Publish odometry and TF
                 self._publish_odom(x, y, theta, vx, vy, yaw_rate)
 
                 # Consume the packet from buffer

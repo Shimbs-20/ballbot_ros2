@@ -68,7 +68,7 @@ controller_server:
       # Increase time_steps for smoother paths, decrease for faster reaction
       time_steps: 30
       model_dt: 0.1
-      batch_size: 500          # Pi 4 limit — increase to 1000 on faster hardware
+      batch_size: 300          # Pi 4 limit — increase to 1000 on faster hardware
       iteration_count: 1       # 1 iteration per control tick — sufficient for Pi 4
 
       # ── Velocity limits — must match STM32 bridge limits ──
@@ -200,51 +200,44 @@ behavior_server:
 # Updated from live lidar at 5Hz
 # MPPI uses this for real-time obstacle avoidance
 # ══════════════════════════════════════════════════════════════
+# nav2_param_shelf.yaml
+# Identical to nav2_param.yaml but obstacle_layer is DISABLED.
+# Use for shelf testing when lidar is enclosed in a tight space.
+#
+# Usage:
+#   Copy over nav2_param.yaml temporarily, or pass as param file:
+#   Just change this one line in the local_costmap:
+#     plugins: ["static_layer", "inflation_layer"]  # obstacle_layer removed
+#
+# Switch back to full navigation by restoring:
+#     plugins: ["static_layer", "obstacle_layer", "inflation_layer"]
+
 local_costmap:
   local_costmap:
     ros__parameters:
-      use_sim_time: false
       update_frequency: 5.0
       publish_frequency: 2.0
       global_frame: odom
-      robot_base_frame: base_footprint   # FIX: was base_link
+      robot_base_frame: base_footprint
+      use_sim_time: false
       rolling_window: true
       width: 3
       height: 3
       resolution: 0.05
-      robot_radius: 0.22                 # ball radius 0.125 + 0.095 safety margin
-
-      # obstacle_layer reads live /scan for dynamic obstacles
-      # static_layer adds the saved map walls into local window
-      # inflation_layer creates cost gradient for MPPI to follow
-      plugins: ["static_layer", "obstacle_layer", "inflation_layer"]
-
+      robot_radius: 0.22
+      # ── SHELF TEST: obstacle_layer removed ───────────────────
+      # Lidar sees walls 5cm away on shelf → costmap fully blocked
+      # Remove obstacle_layer so MPPI can plan freely during testing
+      plugins: ["static_layer", "inflation_layer"]
       static_layer:
         plugin: "nav2_costmap_2d::StaticLayer"
         map_subscribe_transient_local: true
-
-      obstacle_layer:
-        plugin: "nav2_costmap_2d::ObstacleLayer"
-        enabled: true
-        observation_sources: scan
-        scan:
-          topic: /scan
-          max_obstacle_height: 2.0
-          clearing: true
-          marking: true
-          data_type: "LaserScan"
-          raytrace_max_range: 3.0
-          raytrace_min_range: 0.12       # matches LD06 min range
-          obstacle_max_range: 2.5
-          obstacle_min_range: 0.12       # ignore returns closer than 12cm (lidar body)
-
       inflation_layer:
         plugin: "nav2_costmap_2d::InflationLayer"
         cost_scaling_factor: 3.0
-        inflation_radius: 0.35           # robot_radius + 0.13m safety buffer
-
+        inflation_radius: 0.35
       always_send_full_costmap: true
-
+      
 # ══════════════════════════════════════════════════════════════
 # GLOBAL COSTMAP — full map, updated slowly
 # SmacPlanner2D uses this for path planning
