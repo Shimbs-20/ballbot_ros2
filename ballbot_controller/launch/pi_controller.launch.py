@@ -76,7 +76,6 @@ def generate_launch_description():
         parameters=[{"use_sim_time": False}],
     )
 
-    # ── Static TF: base_link → laser_link ─────────────────────────
     laser_tf = Node(
         package="tf2_ros",
         executable="static_transform_publisher",
@@ -111,14 +110,7 @@ def generate_launch_description():
         ],
     )
 
-    # ══════════════════════════════════════════════════════════════
-    # ODOMETRY — fake OR real (never both at the same time)
-    # ══════════════════════════════════════════════════════════════
 
-    # ── fake_odom (use_fake_odom:=true) ───────────────────────────
-    # Integrates /cmd_vel mathematically → /odom + TF
-    # Use when STM32 is not connected or firmware not ready.
-    # Works with PS4, keyboard, and Nav2 for software testing.
     fake_odom = GroupAction(
         condition=IfCondition(use_fake_odom),
         actions=[

@@ -43,7 +43,6 @@ class EasyCameraNode(Node):
     def timer_callback(self):
         ret, frame = self.cap.read()
         if ret:
-            # Convert the raw OpenCV image (BGR format) into a ROS 2 Image message
             msg = self.bridge.cv2_to_imgmsg(frame, encoding='bgr8')
             self.publisher_.publish(msg)
         else:
