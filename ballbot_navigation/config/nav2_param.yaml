@@ -68,7 +68,7 @@ controller_server:
       # Increase time_steps for smoother paths, decrease for faster reaction
       time_steps: 30
       model_dt: 0.1
-      batch_size: 500          # Pi 4 limit — increase to 1000 on faster hardware
+      batch_size: 300         # Pi 4 limit — increase to 1000 on faster hardware
       iteration_count: 1       # 1 iteration per control tick — sufficient for Pi 4
 
       # ── Velocity limits — must match STM32 bridge limits ──
@@ -91,7 +91,7 @@ controller_server:
       motion_model: "Omni"     # CRITICAL — sets holonomic kinematics
 
       prune_distance: 1.5
-      transform_tolerance: 0.3
+      transform_tolerance: 1.0
       enforce_path_inversion: false  # holonomic robots don't need to reverse
 
       # ── Critics — each scores a different aspect of trajectory ──
@@ -259,6 +259,7 @@ global_costmap:
       robot_base_frame: base_footprint  # FIX: was base_link
       robot_radius: 0.22
       plugins: ["static_layer", "inflation_layer"]
+      always_send_full_costmap: true    # ← ADD THIS LINE
 
       static_layer:
         plugin: "nav2_costmap_2d::StaticLayer"

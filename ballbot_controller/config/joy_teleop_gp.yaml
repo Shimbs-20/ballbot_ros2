@@ -5,22 +5,26 @@ joy_teleop:
       interface_type: geometry_msgs/msg/Twist
       topic_name: /cmd_vel_joy
 
-      # L1 (button 4) is the deadman switch (must be held to move)
-      # This is standard for safety even in "faked" physics
+      # L1 (button 4) is the deadman switch — must be held to move.
+      # This is the standard safety pattern for a balance robot.
       deadman_buttons: [4]
 
       axis_mappings:
         linear-x:
-          axis: 1       # Left stick Vertical (Forward/Backward)
-          scale: 1.2    # Increased to 1.2 m/s for snappier response
+          axis: 1        # Left stick vertical (up = forward)
+          # Scale matches stm32_bridge max_vx=0.5 m/s.
+          # Full stick deflection → exactly max speed.
+          # Old value was 1.2 — the bridge clamped it so you never reached
+          # full stick range, making control feel "dead" above 42%.
+          scale: 0.5
           offset: 0.0
 
         linear-y:
-          axis: 0       # Left stick Horizontal (Strafe Left/Right)
-          scale: 1.2    # Matched with X for consistent omnidirectional feel
+          axis: 0        # Left stick horizontal (right = +y in ROS = strafe left)
+          scale: 0.5     # Matches bridge max_vy=0.5 m/s
           offset: 0.0
 
         angular-z:
-          axis: 3       # Right stick Horizontal (Rotation)
-          scale: 2.5    # Increased to 2.5 rad/s to make turns feel athletic
+          axis: 3        # Right stick horizontal
+          scale: 1.0     # Matches bridge max_yaw_rate=1.0 rad/s
           offset: 0.0

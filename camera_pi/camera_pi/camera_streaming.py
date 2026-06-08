@@ -19,15 +19,18 @@ class EasyCameraNode(Node):
         cam_height = self.get_parameter('height').value
         cam_fps = self.get_parameter('framerate').value
 
-        self.publisher_ = self.create_publisher(Image, '/image_raw', 10)
+        # SPEED OPTIMIZATION 1: Change queue size to 1 to prevent ROS 2 backlog
+        self.publisher_ = self.create_publisher(Image, '/image_raw', 1)
+
         self.timer = self.create_timer(0.033, self.timer_callback)
         self.bridge = CvBridge()
 
-        # 3. Inject the variables into the GStreamer string using an f-string
+        # SPEED OPTIMIZATION 2: Removed spaces in caps filter so it doesn't fail
+        # SPEED OPTIMIZATION 3: Added drop=true, max-buffers=1, and sync=false to appsink
         gstreamer_pipeline = (
             f"libcamerasrc ! "
-            f"video/x-raw, width={cam_width}, height={cam_height}, framerate={cam_fps}/1 ! "
-            f"videoconvert ! appsink"
+            f"video/x-raw,width={cam_width},height={cam_height},framerate={cam_fps}/1 ! "
+            f"videoconvert ! appsink drop=true max-buffers=1 sync=false"
         )
 
         self.get_logger().info(f"Attempting to start camera at {cam_width}x{cam_height} @ {cam_fps} FPS...")
@@ -37,6 +40,7 @@ class EasyCameraNode(Node):
         if not self.cap.isOpened():
             self.get_logger().warning("GStreamer failed. Falling back to /dev/video0...")
             self.cap = cv2.VideoCapture(0)
+            self.cap.set(cv2.CAP_PROP_BUFFERSIZE, 1) # Limit buffer on fallback too
 
         self.get_logger().info("Python Camera Node Started! Streaming to /image_raw...")
 
@@ -62,7 +66,8 @@ def main(args=None):
         node.get_logger().info("Shutting down camera node...")
     finally:
         node.destroy_node()
-        rclpy.shutdown()
+        if rclpy.ok():
+            rclpy.shutdown()
 
 if __name__ == '__main__':
     main()

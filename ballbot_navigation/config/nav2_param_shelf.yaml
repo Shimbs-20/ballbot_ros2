@@ -91,7 +91,7 @@ controller_server:
       motion_model: "Omni"     # CRITICAL — sets holonomic kinematics
 
       prune_distance: 1.5
-      transform_tolerance: 0.3
+      transform_tolerance: 1.0
       enforce_path_inversion: false  # holonomic robots don't need to reverse
 
       # ── Critics — each scores a different aspect of trajectory ──
@@ -252,6 +252,7 @@ global_costmap:
       robot_base_frame: base_footprint  # FIX: was base_link
       robot_radius: 0.22
       plugins: ["static_layer", "inflation_layer"]
+      always_send_full_costmap: true    # ← ADD THIS LINE
 
       static_layer:
         plugin: "nav2_costmap_2d::StaticLayer"

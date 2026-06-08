@@ -2,32 +2,34 @@
 """
 pi_controller.launch.py  —  ballbot_controller package
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-Terminal 1 — ALWAYS run this first.
+TERMINAL 1 — ALWAYS run this first.
 
-Testing (no STM32, no real movement):
+── Development / testing (no STM32 needed) ──────────────────
   ros2 launch ballbot_controller pi_controller.launch.py
 
-Real robot (STM32 connected on /dev/ttyAMA2):
+── Real robot — stationary balance only ─────────────────────
   ros2 launch ballbot_controller pi_controller.launch.py \
-    use_fake_odom:=false
+    use_fake_odom:=false robot_mode:=1
 
-Complete data flow:
-  PS4 L1+stick → /cmd_vel_joy ──┐
-  keyboard     → /key_vel    ───┤→ twist_mux → /cmd_vel
-  Nav2 MPPI    → /cmd_vel_nav ──┘         ↓
-                                    stm32_bridge
-                                    ↙            ↘
-                              TX: 15-byte      RX: 27-byte
-                              velocity       odom packet
-                              to STM32       from STM32
-                                                  ↓
-                                            /odom + TF
-                                         odom→base_footprint
+── Real robot — teleop (balance + drive on ball) ────────────
+  ros2 launch ballbot_controller pi_controller.launch.py \
+    use_fake_odom:=false robot_mode:=2
+
+── SLAM mapping on floor (casters, no balancing) ────────────
+  ros2 launch ballbot_controller pi_controller.launch.py \
+    use_fake_odom:=false robot_mode:=3
+
+── Switch mode without restarting ───────────────────────────
+  ros2 topic pub --once /ballbot/mode std_msgs/msg/UInt8 '{data: 2}'
+
+TX 16-byte [0xAA][0x55][mode][vx][vy][yaw][XOR]  @50 Hz
+RX 27-byte [0xBB][0x66][x][y][θ][vx][vy][yaw][XOR] @20 Hz (Modes 2+3)
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 """
 import os
 from launch import LaunchDescription
-from launch.actions import DeclareLaunchArgument, GroupAction
+from launch.actions import (DeclareLaunchArgument, GroupAction,
+                             ExecuteProcess, TimerAction)
 from launch.conditions import IfCondition, UnlessCondition
 from launch.substitutions import Command, LaunchConfiguration
 from launch_ros.actions import Node, LifecycleNode
@@ -40,18 +42,29 @@ def generate_launch_description():
     gp_pkg   = get_package_share_directory("gp_description")
     ctrl_pkg = get_package_share_directory("ballbot_controller")
 
-    # ── Arguments ─────────────────────────────────────────────────
+    # ── Arguments ─────────────────────────────────────────────────────────
     use_fake_odom_arg = DeclareLaunchArgument(
         "use_fake_odom",
         default_value="true",
         description=(
-            "true  = fake_odom.py — integrate /cmd_vel → /odom (no STM32 needed) "
-            "false = stm32_bridge — real odom from STM32 USART2 via /dev/ttyAMA2"
+            "true  = fake_odom.py (integrate /cmd_vel → /odom, no STM32 needed)\n"
+            "false = stm32_bridge  (real 27-byte binary odom from STM32)"
         )
     )
-    use_fake_odom = LaunchConfiguration("use_fake_odom")
 
-    # ── Robot description ─────────────────────────────────────────
+    robot_mode_arg = DeclareLaunchArgument(
+        "robot_mode",
+        default_value="1",
+        description=(
+            "STM32 starting mode: "
+            "0=STANDBY, 1=BALANCE, 2=TELEOP, 3=FLOOR_DRIVE"
+        )
+    )
+
+    use_fake_odom = LaunchConfiguration("use_fake_odom")
+    robot_mode    = LaunchConfiguration("robot_mode")
+
+    # ── Robot description ──────────────────────────────────────────────────
     robot_description = ParameterValue(
         Command(["xacro ", os.path.join(
             gp_pkg, "urdf", "ballbot1.urdf.xacro")]),
@@ -76,6 +89,9 @@ def generate_launch_description():
         parameters=[{"use_sim_time": False}],
     )
 
+    # base_link → laser_link static TF
+    # REMOVE this node if your URDF already publishes this transform —
+    # having both causes "TF_REPEATED_DATA" warnings.
     laser_tf = Node(
         package="tf2_ros",
         executable="static_transform_publisher",
@@ -93,7 +109,7 @@ def generate_launch_description():
         parameters=[{"use_sim_time": False}],
     )
 
-    # ── LD06 Lidar on /dev/ttyS0 ──────────────────────────────────
+    # ── LD06 LiDAR on /dev/ttyS0 ──────────────────────────────────────────
     lidar_node = Node(
         package="ldlidar_stl_ros2",
         executable="ldlidar_stl_ros2_node",
@@ -110,7 +126,7 @@ def generate_launch_description():
         ],
     )
 
-
+    # ── Fake odometry (testing without STM32) ─────────────────────────────
     fake_odom = GroupAction(
         condition=IfCondition(use_fake_odom),
         actions=[
@@ -124,17 +140,7 @@ def generate_launch_description():
         ],
     )
 
-    # ── stm32_bridge (use_fake_odom:=false) ───────────────────────
-    # Real odometry from STM32 EKF via USART2 on /dev/ttyAMA2.
-    # Lifecycle node: UNCONFIGURED → INACTIVE → ACTIVE
-    # The lifecycle_manager below activates it automatically.
-    #
-    # TX path: /cmd_vel → stm32_bridge → 15-byte packet → STM32 USART2
-    # RX path: STM32 USART2 → 27-byte packet → stm32_bridge → /odom + TF
-    #
-    # Wire: Pi pin27 GPIO0 TXD → STM32 PA3 USART2_RX
-    #       Pi pin28 GPIO1 RXD → STM32 PA2 USART2_TX
-    #       Pi pin25 GND       → STM32 GND
+    # ── STM32 bridge (real robot) ──────────────────────────────────────────
     stm32_odom = GroupAction(
         condition=UnlessCondition(use_fake_odom),
         actions=[
@@ -149,6 +155,7 @@ def generate_launch_description():
                     "baud_rate":       115200,
                     "tx_rate_hz":      50.0,
                     "cmd_vel_timeout": 0.5,
+                    "default_mode":    robot_mode,
                     "max_vx":          0.5,
                     "max_vy":          0.5,
                     "max_yaw_rate":    1.0,
@@ -157,7 +164,6 @@ def generate_launch_description():
                     "use_sim_time":    False,
                 }],
             ),
-            # Manages the lifecycle: configure → activate automatically
             Node(
                 package="nav2_lifecycle_manager",
                 executable="lifecycle_manager",
@@ -169,14 +175,23 @@ def generate_launch_description():
                     "node_names":   ["ballbot_stm32_bridge"],
                 }],
             ),
+            # Belt-and-suspenders: re-send mode 5s after bridge activates
+            # so STM32 gets the command even if it booted late.
+            TimerAction(
+                period=5.0,
+                actions=[ExecuteProcess(
+                    cmd=[
+                        "bash", "-c",
+                        ["ros2 topic pub --once /ballbot/mode "
+                         "std_msgs/msg/UInt8 '{data: ", robot_mode, "}'"]
+                    ],
+                    output="screen",
+                )],
+            ),
         ],
     )
 
-    # ══════════════════════════════════════════════════════════════
-    # VELOCITY INPUT — PS4, keyboard, Nav2 all go through twist_mux
-    # ══════════════════════════════════════════════════════════════
-
-    # PS4 DualShock4 — hold L1 (button 4) to enable motion
+    # ── Velocity inputs ────────────────────────────────────────────────────
     joy_node = Node(
         package="joy",
         executable="joy_node",
@@ -199,12 +214,7 @@ def generate_launch_description():
         ],
     )
 
-    # twist_mux merges all velocity sources by priority:
-    #   /cmd_vel_joy  priority 100  PS4 controller
-    #   /key_vel      priority 50   keyboard teleop
-    #   /cmd_vel_nav  priority 10   Nav2 MPPI autonomous
-    # Output /cmd_vel_out is remapped to /cmd_vel
-    # stm32_bridge subscribes to /cmd_vel and sends to STM32
+    # twist_mux priority: PS4(100) > keyboard(50) > Nav2(10)
     twist_mux = Node(
         package="twist_mux",
         executable="twist_mux",
@@ -220,6 +230,7 @@ def generate_launch_description():
 
     return LaunchDescription([
         use_fake_odom_arg,
+        robot_mode_arg,
         robot_state_publisher,
         joint_state_publisher,
         laser_tf,
